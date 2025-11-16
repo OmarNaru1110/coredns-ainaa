@@ -44,3 +44,7 @@ func getCachedDomain(ctx context.Context, client *redis.Client, domain string) (
 	}
 	return CachedDomain{}, redis.Nil
 }
+
+func storeCachedDomain(ctx context.Context, client *redis.Client, domain string, cachedDomain CachedDomain) error {
+	return client.JSONSet(ctx, domain, "$", cachedDomain).Err()
+}
