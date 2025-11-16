@@ -6,7 +6,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func connectDynamoDB(ctx context.Context) (*dynamodb.Client, error) {
@@ -39,4 +41,37 @@ func connectDynamoDB(ctx context.Context) (*dynamodb.Client, error) {
 	}
 
 	return client, nil
+}
+
+func getDomain(ctx context.Context, client *dynamodb.Client, domain string) (DomainRecord, error) {
+	val, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"domain": &types.AttributeValueMemberS{Value: domain},
+		},
+	})
+	if err != nil {
+		return DomainRecord{}, err
+	}
+	if val.Item == nil {
+		return DomainRecord{}, fmt.Errorf("domain not found")
+	}
+
+	var domainRecord DomainRecord
+	_ = attributevalue.UnmarshalMap(val.Item, &domainRecord)
+
+	return domainRecord, nil
+}
+
+func storeDomain(ctx context.Context, client *dynamodb.Client, record DomainRecord) error {
+	item, err := attributevalue.MarshalMap(record)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item:      item,
+	})
+	return err
 }
