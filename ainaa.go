@@ -40,6 +40,7 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	domain = domain[:len(domain)-1] // Remove trailing dot
 	resolver := OpenDNSResolver{}
 
+	log.Info("Starting...")
 	log.Infof("Received DNS query for domain: %s", domain)
 
 	// lookup domain in redis
