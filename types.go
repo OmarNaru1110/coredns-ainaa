@@ -61,7 +61,7 @@ func (r *OpenDNSResolver) Lookup(domain string) (map[string][]string, error) {
 }
 
 func (r *OpenDNSResolver) IsBlockedDomain(ips map[string][]string) bool {
-	for _, ip := range blockedIPs {
+	for _, ip := range openDNSBlockedIPs {
 		for _, resolvedIps := range ips {
 			for _, rip := range resolvedIps {
 				if rip == ip {

@@ -3,6 +3,8 @@ package ainaa
 import (
 	"context"
 	"net"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -22,11 +24,15 @@ type Ainaa struct {
 
 const tableName = "AinaaDomains"
 
-var blockedIPs = []string{
+var openDNSBlockedIPs = []string{
 	"146.112.61.106",
 	"146.112.61.104",
 	"::ffff:146.112.61.104",
 	"::ffff:9270:3d6a",
+}
+var blockedIPs = map[string][]string{
+	"A":    {"0.0.0.0"},
+	"AAAA": {"::"},
 }
 
 func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
@@ -38,11 +44,13 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	if cachedVal, err := getCachedDomain(ctx, a.redisClient, domain); err == nil { // Cache hit
 
 		if cachedVal.Status != 0 {
+			resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
+			w.WriteMsg(resp)
 			return dns.RcodeNameError, nil
 		}
 
 		if cachedVal.IPs != nil {
-			resp := buildResponse(r, cachedVal.IPs)
+			resp := buildResponse(r, dns.RcodeSuccess, cachedVal.IPs)
 			w.WriteMsg(resp)
 			return dns.RcodeSuccess, nil
 		}
@@ -52,14 +60,14 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 			log.Errorf("Error looking up domain %s: %v", domain, err)
 			return dns.RcodeServerFailure, err
 		}
-		resp := buildResponse(r, ips)
+		resp := buildResponse(r, dns.RcodeSuccess, ips)
 		w.WriteMsg(resp)
 		return dns.RcodeSuccess, nil
 	}
 
 	// Cache miss - lookup in DynamoDB
 	domainRecord, err := getDomain(ctx, a.dynamodbClient, domain)
-	if err != nil {
+	if err != nil { // Not found in DynamoDB
 		ips, err := resolver.Lookup(domain)
 		if err != nil {
 			log.Errorf("Error looking up domain %s: %v", domain, err)
@@ -72,19 +80,20 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		newCachedRec := CachedDomain{}
 
 		if resolver.IsBlockedDomain(ips) {
-			//////////////////////////////////////////////////////////
-			newDomainRec.Status = 1 // 1 or 2?, make sure to update this
-			newCachedRec.Status = 1 // 1 or 2?, make sure to update this
-			//////////////////////////////////////////////////////////
+			envStatus, _ := strconv.Atoi(os.Getenv("STATUS"))
+			newDomainRec.Status = envStatus
+			newCachedRec.Status = envStatus
 			storeDomain(ctx, a.dynamodbClient, newDomainRec)
 			storeCachedDomain(ctx, a.redisClient, domain, newCachedRec)
+			resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
+			w.WriteMsg(resp)
 			return dns.RcodeNameError, nil
 		}
 		newDomainRec.Status = 0
 		newCachedRec.Status = 0
 		storeDomain(ctx, a.dynamodbClient, newDomainRec)
 		storeCachedDomain(ctx, a.redisClient, domain, newCachedRec)
-		resp := buildResponse(r, ips)
+		resp := buildResponse(r, dns.RcodeSuccess, ips)
 		w.WriteMsg(resp)
 		return dns.RcodeSuccess, nil
 	}
@@ -92,11 +101,13 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	storeCachedDomain(ctx, a.redisClient, domain, CachedDomain{Status: domainRecord.Status, IPs: domainRecord.IPs})
 
 	if domainRecord.Status != 0 {
+		resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
+		w.WriteMsg(resp)
 		return dns.RcodeNameError, nil
 	}
 
 	if domainRecord.IPs != nil {
-		resp := buildResponse(r, domainRecord.IPs)
+		resp := buildResponse(r, dns.RcodeSuccess, domainRecord.IPs)
 		w.WriteMsg(resp)
 		return dns.RcodeSuccess, nil
 	}
@@ -106,7 +117,7 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		log.Errorf("Error looking up domain %s: %v", domain, err)
 		return dns.RcodeServerFailure, err
 	}
-	resp := buildResponse(r, ips)
+	resp := buildResponse(r, dns.RcodeSuccess, ips)
 	w.WriteMsg(resp)
 
 	return dns.RcodeSuccess, nil
@@ -114,11 +125,11 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 
 func (a Ainaa) Name() string { return "ainaa" }
 
-func buildResponse(r *dns.Msg, ips map[string][]string) *dns.Msg {
+func buildResponse(r *dns.Msg, rcodeStatus int, ips map[string][]string) *dns.Msg {
 	resp := new(dns.Msg)
 	resp.SetReply(r)
 	resp.Authoritative = true
-	resp.Rcode = dns.RcodeSuccess
+	resp.Rcode = rcodeStatus
 	for _, ip := range ips["A"] {
 		resp.Answer = append(resp.Answer, &dns.A{
 			Hdr: dns.RR_Header{
