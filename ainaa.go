@@ -43,21 +43,15 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	domain = domain[:len(domain)-1] // Remove trailing dot
 	resolver := OpenDNSResolver{}
 
-	log.Infof("Received DNS query for domain: %s", domain)
-
 	// lookup domain in redis
 	if cachedVal, err := getCachedDomain(ctx, a.redisClient, domain); err == nil { // Cache hit
-		log.Infof("Cache hit for domain: %s", domain)
 		if cachedVal.Status != 0 {
-			log.Infof("Domain %s is blocked in cache with status %d", domain, cachedVal.Status)
 			resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
 			w.WriteMsg(resp)
 			return dns.RcodeNameError, nil
 		}
 
-		log.Infof("Domain %s is allowed in cache with status %d", domain, cachedVal.Status)
 		if cachedVal.IPs != nil {
-			log.Infof("Returning cached IPs for domain %s: %v", domain, cachedVal.IPs)
 			resp := buildResponse(r, dns.RcodeSuccess, cachedVal.IPs)
 			w.WriteMsg(resp)
 			return dns.RcodeSuccess, nil
@@ -68,23 +62,19 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 			log.Errorf("Error looking up domain %s: %v", domain, err)
 			return dns.RcodeServerFailure, err
 		}
-		log.Infof("Returning resolved IPs for domain %s: %v", domain, ips)
 		resp := buildResponse(r, dns.RcodeSuccess, ips)
 		w.WriteMsg(resp)
 		return dns.RcodeSuccess, nil
 	}
 
 	// Cache miss - lookup in DynamoDB
-	log.Infof("Cache miss for domain: %s", domain)
 	domainRecord, err := getDomain(ctx, a.dynamodbClient, domain)
 	if err != nil { // Not found in DynamoDB
-		log.Infof("Domain %s not found in DynamoDB", domain)
 		ips, err := resolver.Lookup(domain)
 		if err != nil {
 			log.Errorf("Error looking up domain %s: %v", domain, err)
 			return dns.RcodeServerFailure, err
 		}
-		log.Infof("Returning resolved IPs for domain %s: %v", domain, ips)
 		newDomainRec := DomainRecord{
 			Domain:    domain,
 			CreatedAt: time.Now().UTC(),
@@ -92,7 +82,6 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		newCachedRec := CachedDomain{}
 
 		if resolver.IsBlockedDomain(ips) {
-			log.Infof("Domain %s is identified as blocked", domain)
 			envStatus, _ := strconv.Atoi(os.Getenv("STATUS"))
 			newDomainRec.Status = envStatus
 			newCachedRec.Status = envStatus
@@ -103,7 +92,6 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 			return dns.RcodeNameError, nil
 		}
 
-		log.Infof("Domain %s is allowed", domain)
 		newDomainRec.Status = 0
 		newCachedRec.Status = 0
 		storeDomain(ctx, a.dynamodbClient, newDomainRec)
@@ -113,18 +101,15 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		return dns.RcodeSuccess, nil
 	}
 
-	log.Infof("Domain %s found in DynamoDB with status %d", domain, domainRecord.Status)
 	storeCachedDomain(ctx, a.redisClient, domain, CachedDomain{Status: domainRecord.Status, IPs: domainRecord.IPs})
 
 	if domainRecord.Status != 0 {
-		log.Infof("Domain %s is blocked in dynamodb with status %d", domain, domainRecord.Status)
 		resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
 		w.WriteMsg(resp)
 		return dns.RcodeNameError, nil
 	}
 
 	if domainRecord.IPs != nil {
-		log.Infof("Returning IPs from DynamoDB for domain %s: %v", domain, domainRecord.IPs)
 		resp := buildResponse(r, dns.RcodeSuccess, domainRecord.IPs)
 		w.WriteMsg(resp)
 		return dns.RcodeSuccess, nil
@@ -135,7 +120,6 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		log.Errorf("Error looking up domain %s: %v", domain, err)
 		return dns.RcodeServerFailure, err
 	}
-	log.Infof("Returning resolved IPs for domain %s: %v", domain, ips)
 	resp := buildResponse(r, dns.RcodeSuccess, ips)
 	w.WriteMsg(resp)
 
