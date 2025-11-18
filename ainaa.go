@@ -14,15 +14,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var log = clog.NewWithPlugin("ainaa")
+const (
+	tableName = "AinaaDomains"
+	name      = "ainaa"
+)
+
+var log = clog.NewWithPlugin(name)
 
 type Ainaa struct {
 	Next           plugin.Handler
 	redisClient    *redis.Client
 	dynamodbClient *dynamodb.Client
 }
-
-const tableName = "AinaaDomains"
 
 var openDNSBlockedIPs = []string{
 	"146.112.61.106",
@@ -40,7 +43,6 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	domain = domain[:len(domain)-1] // Remove trailing dot
 	resolver := OpenDNSResolver{}
 
-	log.Info("Starting...")
 	log.Infof("Received DNS query for domain: %s", domain)
 
 	// lookup domain in redis
@@ -140,7 +142,7 @@ func (a Ainaa) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	return dns.RcodeSuccess, nil
 }
 
-func (a Ainaa) Name() string { return "ainaa" }
+func (a Ainaa) Name() string { return name }
 
 func buildResponse(r *dns.Msg, rcodeStatus int, ips map[string][]string) *dns.Msg {
 	resp := new(dns.Msg)
