@@ -9,7 +9,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/coredns/coredns/plugin"
-	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/miekg/dns"
 	"github.com/redis/go-redis/v9"
 )
@@ -18,8 +17,6 @@ const (
 	tableName = "AinaaDomains"
 	name      = "ainaa"
 )
-
-var log = clog.NewWithPlugin(name)
 
 type Ainaa struct {
 	Next           plugin.Handler
