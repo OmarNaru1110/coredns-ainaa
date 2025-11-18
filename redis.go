@@ -35,14 +35,17 @@ func parseJsonCachedDomain(data string) (CachedDomain, error) {
 }
 
 func getCachedDomain(ctx context.Context, client *redis.Client, domain string) (CachedDomain, error) {
-	if val, err := client.JSONGet(ctx, domain, "$").Result(); err == nil {
-		cachedVal, err := parseJsonCachedDomain(val)
-		if err != nil {
-			return CachedDomain{}, err
-		}
-		return cachedVal, nil
+	val, err := client.JSONGet(ctx, domain, "$").Result()
+	if err != nil {
+		return CachedDomain{}, err // Return the actual error
 	}
-	return CachedDomain{}, redis.Nil
+
+	cachedVal, err := parseJsonCachedDomain(val)
+	if err != nil {
+		return CachedDomain{}, err
+	}
+
+	return cachedVal, nil
 }
 
 func storeCachedDomain(ctx context.Context, client *redis.Client, domain string, cachedDomain CachedDomain) error {
