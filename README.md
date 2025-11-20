@@ -1,4 +1,4 @@
-# coredns-ainaa
+# ainaa
 
 ainaa - provides intelligent DNS filtering with Redis caching and DynamoDB-backed protection.
 
