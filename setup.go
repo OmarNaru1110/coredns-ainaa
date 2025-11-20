@@ -21,15 +21,24 @@ func setup(c *caddy.Controller) error {
 	if err != nil {
 		return plugin.Error(name, err)
 	}
+	redisRepo := NewRedisRepository(redisClient)
 
 	// connect to dynamodb
 	dynamodbClient, err := connectDynamoDB(context.Background())
 	if err != nil {
 		return plugin.Error(name, err)
 	}
+	dynamoRepo := NewDynamoDBRepository(dynamodbClient)
+
+	resolver := &OpenDNSResolver{}
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		return Ainaa{Next: next, redisClient: redisClient, dynamodbClient: dynamodbClient}
+		return Ainaa{
+			Next:       next,
+			Cache:      redisRepo,
+			Persistent: dynamoRepo,
+			Resolver:   resolver,
+		}
 	})
 
 	return nil

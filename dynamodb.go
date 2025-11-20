@@ -3,6 +3,7 @@ package ainaa
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -10,6 +11,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
+
+// DynamoDBRepository implements PersistentRepository using DynamoDB.
+type DynamoDBRepository struct {
+	client *dynamodb.Client
+}
+
+// NewDynamoDBRepository creates a new DynamoDBRepository.
+func NewDynamoDBRepository(client *dynamodb.Client) *DynamoDBRepository {
+	return &DynamoDBRepository{client: client}
+}
 
 func connectDynamoDB(ctx context.Context) (*dynamodb.Client, error) {
 
@@ -43,8 +54,9 @@ func connectDynamoDB(ctx context.Context) (*dynamodb.Client, error) {
 	return client, nil
 }
 
-func getDomain(ctx context.Context, client *dynamodb.Client, domain string) (DomainRecord, error) {
-	val, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+// Get retrieves a domain from DynamoDB.
+func (r *DynamoDBRepository) Get(ctx context.Context, domain string) (DomainRecord, error) {
+	val, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]types.AttributeValue{
 			"domain": &types.AttributeValueMemberS{Value: domain},
@@ -63,13 +75,14 @@ func getDomain(ctx context.Context, client *dynamodb.Client, domain string) (Dom
 	return domainRecord, nil
 }
 
-func storeDomain(ctx context.Context, client *dynamodb.Client, record DomainRecord) error {
+// Save stores a domain in DynamoDB.
+func (r *DynamoDBRepository) Save(ctx context.Context, record DomainRecord) error {
 	item, err := attributevalue.MarshalMap(record)
 	if err != nil {
 		return err
 	}
 
-	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+	_, err = r.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item:      item,
 	})
