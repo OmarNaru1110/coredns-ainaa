@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -64,6 +65,9 @@ func (r *RedisRepository) Get(ctx context.Context, domain string) (CachedDomain,
 }
 
 // Set stores a domain in the cache.
-func (r *RedisRepository) Set(ctx context.Context, domain string, value CachedDomain) error {
-	return r.client.JSONSet(ctx, domain, "$", value).Err()
+func (r *RedisRepository) Set(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
+	if err := r.client.JSONSet(ctx, domain, "$", value).Err(); err != nil {
+		return err
+	}
+	return r.client.Expire(ctx, domain, ttl).Err()
 }

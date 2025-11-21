@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
@@ -15,7 +16,7 @@ import (
 
 type MockCacheRepository struct {
 	GetFunc func(ctx context.Context, domain string) (CachedDomain, error)
-	SetFunc func(ctx context.Context, domain string, value CachedDomain) error
+	SetFunc func(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error
 }
 
 func (m *MockCacheRepository) Get(ctx context.Context, domain string) (CachedDomain, error) {
@@ -25,9 +26,9 @@ func (m *MockCacheRepository) Get(ctx context.Context, domain string) (CachedDom
 	return CachedDomain{}, nil
 }
 
-func (m *MockCacheRepository) Set(ctx context.Context, domain string, value CachedDomain) error {
+func (m *MockCacheRepository) Set(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
 	if m.SetFunc != nil {
-		return m.SetFunc(ctx, domain, value)
+		return m.SetFunc(ctx, domain, value, ttl)
 	}
 	return nil
 }
@@ -120,7 +121,7 @@ func TestAinaa_ServeDNS(t *testing.T) {
 						IPs:    map[string][]string{"A": {"5.6.7.8"}},
 					}, nil
 				}
-				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain) error {
+				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
 					if value.Status != 0 || value.IPs["A"][0] != "5.6.7.8" {
 						t.Errorf("Unexpected cache set value: %v", value)
 					}
@@ -152,7 +153,7 @@ func TestAinaa_ServeDNS(t *testing.T) {
 					}
 					return nil
 				}
-				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain) error {
+				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
 					if value.Status != 0 {
 						t.Errorf("Unexpected cache set value: %v", value)
 					}
@@ -181,7 +182,7 @@ func TestAinaa_ServeDNS(t *testing.T) {
 				p.SaveFunc = func(ctx context.Context, record DomainRecord) error {
 					return nil
 				}
-				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain) error {
+				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
 					return nil
 				}
 			},
@@ -202,7 +203,7 @@ func TestAinaa_ServeDNS(t *testing.T) {
 					t.Errorf("Unexpected call to Persistent.Save")
 					return nil
 				}
-				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain) error {
+				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
 					t.Errorf("Unexpected call to Cache.Set")
 					return nil
 				}
@@ -224,7 +225,7 @@ func TestAinaa_ServeDNS(t *testing.T) {
 					return map[string][]string{"A": {"10.0.0.2"}}, nil
 				}
 				// Expect Cache.Set but NO Persistent.Save
-				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain) error {
+				c.SetFunc = func(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error {
 					if value.Status != 0 || value.IPs != nil {
 						t.Errorf("Unexpected cache set value: %v", value)
 					}

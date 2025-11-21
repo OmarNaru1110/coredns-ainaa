@@ -15,6 +15,7 @@ import (
 const (
 	tableName = "AinaaDomains"
 	name      = "ainaa"
+	cacheTTL  = 1 * time.Hour
 )
 
 type Ainaa struct {
@@ -90,7 +91,7 @@ func (a Ainaa) handlePersistentHit(ctx context.Context, w dns.ResponseWriter, r 
 
 	if domainRecord.Status != 0 {
 		// Update Cache with blocked status
-		a.Cache.Set(ctx, domain, CachedDomain{Status: domainRecord.Status, IPs: nil})
+		a.Cache.Set(ctx, domain, CachedDomain{Status: domainRecord.Status, IPs: nil}, cacheTTL)
 		log.Debugf("Domain %s is blocked with status: %d", domain, domainRecord.Status)
 		resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
 		w.WriteMsg(resp)
@@ -99,7 +100,7 @@ func (a Ainaa) handlePersistentHit(ctx context.Context, w dns.ResponseWriter, r 
 
 	if domainRecord.IPs != nil {
 		// Update Cache with IPs
-		a.Cache.Set(ctx, domain, CachedDomain{Status: domainRecord.Status, IPs: domainRecord.IPs})
+		a.Cache.Set(ctx, domain, CachedDomain{Status: domainRecord.Status, IPs: domainRecord.IPs}, cacheTTL)
 		log.Debugf("Serving Persistent Storage IPs for domain: %s", domain)
 		resp := buildResponse(r, dns.RcodeSuccess, domainRecord.IPs)
 		w.WriteMsg(resp)
@@ -114,7 +115,7 @@ func (a Ainaa) handlePersistentHit(ctx context.Context, w dns.ResponseWriter, r 
 	}
 
 	// Update Cache with status only (no IPs)
-	a.Cache.Set(ctx, domain, CachedDomain{Status: domainRecord.Status, IPs: nil})
+	a.Cache.Set(ctx, domain, CachedDomain{Status: domainRecord.Status, IPs: nil}, cacheTTL)
 
 	resp := buildResponse(r, dns.RcodeSuccess, ips)
 	w.WriteMsg(resp)
@@ -148,7 +149,7 @@ func (a Ainaa) handleMiss(ctx context.Context, w dns.ResponseWriter, r *dns.Msg,
 		newDomainRec.Status = envStatus
 		newCachedRec.Status = envStatus
 		a.Persistent.Save(ctx, newDomainRec)
-		a.Cache.Set(ctx, domain, newCachedRec)
+		a.Cache.Set(ctx, domain, newCachedRec, cacheTTL)
 		resp := buildResponse(r, dns.RcodeNameError, blockedIPs)
 		w.WriteMsg(resp)
 		return dns.RcodeNameError, nil
@@ -158,7 +159,7 @@ func (a Ainaa) handleMiss(ctx context.Context, w dns.ResponseWriter, r *dns.Msg,
 	newDomainRec.Status = 0
 	newCachedRec.Status = 0
 	a.Persistent.Save(ctx, newDomainRec)
-	a.Cache.Set(ctx, domain, newCachedRec)
+	a.Cache.Set(ctx, domain, newCachedRec, cacheTTL)
 	resp := buildResponse(r, dns.RcodeSuccess, ips)
 	w.WriteMsg(resp)
 	return dns.RcodeSuccess, nil

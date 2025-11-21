@@ -1,11 +1,14 @@
 package ainaa
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // CacheRepository defines the interface for caching operations.
 type CacheRepository interface {
 	Get(ctx context.Context, domain string) (CachedDomain, error)
-	Set(ctx context.Context, domain string, value CachedDomain) error
+	Set(ctx context.Context, domain string, value CachedDomain, ttl time.Duration) error
 }
 
 // PersistentRepository defines the interface for persistent storage operations.
