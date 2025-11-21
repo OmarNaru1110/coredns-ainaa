@@ -1,4 +1,4 @@
-# coredns-ainaa
+# ainaa
 
 ainaa - provides intelligent DNS filtering with Redis caching and DynamoDB-backed protection.
 
@@ -53,9 +53,6 @@ Or enable `debug` before `ainaa` to get additional logging during processing:
 }
 ```
 
-Notes
+## Notes
 - Configure Redis and DynamoDB connection settings in the plugin's configuration (see source files for available flags and environment variables).
 - Put `ainaa` early in your plugin list so it can make filtering decisions before other plugins respond.
-
-License and Contributions
-See the repository for license information and contribution guidelines.
